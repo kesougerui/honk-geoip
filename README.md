@@ -15,28 +15,22 @@ dist/geoip.dat.sha256sum  校验文件，对应 honk 的 checksum: true
 
 ## 在 honk 里用
 
-`/etc/honk/config.dae` 的 `global` 块里加（注意：`assets.geodata.*` 任何改动都要**重启** honk 才生效）：
+honk 的 geodata 地址存在 `<data_dir>/state/honk.db` 的 `geodata_settings` 表里，**不是**通过 `config.dae` 的 `assets` 块配置（v0.1.0-beta.6 会把它当成 unknown nested block 忽略掉）。两种改法：
 
-```dae
-global {
-  assets {
-    geodata {
-      geoip: 'https://raw.githubusercontent.com/<USER>/honk-geoip/main/dist/geoip.dat'
-      checksum: true
-      auto_update: true
-      cron: '0 3 * * *'
-    }
-  }
-}
+**面板**：honk 面板 → Geodata → 把 geoip 的 URL 改成
+
+```
+https://raw.githubusercontent.com/kesougerui/honk-geoip/main/dist/geoip.dat
 ```
 
-然后：
+**API**（`GET /api/v1/geodata` 看现状，`POST /api/v1/geodata/update` 立即拉取）：
 
 ```sh
-ssh root@192.168.2.1 '/etc/init.d/honk restart'
+curl -sS -H 'Host: <你的 allowed_hosts>' -H 'Authorization: Bearer <secret>' \
+  http://192.168.2.1:9527/api/v1/geodata
 ```
 
-`checksum: true` 时 honk 会去拉 `<url>.sha256sum`，本仓库已生成；若该文件 404，honk 会接受未校验的文件。
+改完触发一次 update，等 `assets[].verified == true` 即表示 `.sha256sum` 校验通过（本仓库已生成 `dist/geoip.dat.sha256sum`）。
 
 之后 `route.dae` 里就能直接写：
 
@@ -46,15 +40,7 @@ dip(geoip:telegram) -> proxy
 
 （code 大小写不敏感，`CN`/`cn` 都行。）
 
-### 拉不到 raw.githubusercontent.com 时
-
-honk 的 `geodata.route` 默认是 `routing`，即按路由规则下载；如果 fallback 走代理，raw 通常没问题。若想直连 CDN，可改用 jsDelivr：
-
-```
-https://cdn.jsdelivr.net/gh/<USER>/honk-geoip@main/dist/geoip.dat
-```
-
-jsDelivr 对分支有缓存（最长约 12h），日更数据可以接受；raw 无缓存、永远最新。
+注意：`geodata_settings` 是 honk 自己维护的记录，用面板/API 改才会写回；直接编辑 dat 文件会在下次自动更新时被覆盖。
 
 ## 维护
 
